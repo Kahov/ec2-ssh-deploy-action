@@ -1,0 +1,54 @@
+# name: Push-to-EC2
+
+ on: 
+   push:
+     tags:
+       - '*-dev'
+    
+   workflow_dispatch:
+
+
+ jobs:
+   deploy:
+     name: Push to EC2 Instance
+     runs-on: ubuntu-latest
+
+     steps:
+       - name: Checkout the code
+         uses: actions/checkout@v1
+
+       - name: Deploy to EC2 instance
+         uses: easingthemes/ssh-deploy@v2.1.5
+         env:
+           SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+           SOURCE: "./"
+           REMOTE_HOST: ${{ secrets.REMOTE_HOST_API }}
+           REMOTE_USER: "username"
+           TARGET: ${{ secrets.TARGET_DEV }}
+          
+       - name: Executing remote ssh commands using ssh key
+         uses: appleboy/ssh-action@master
+         with:
+           host: ${{ secrets.REMOTE_HOST_API }}
+           username: "username"
+           key: ${{ secrets.EC2_SSH_KEY }}
+           #script to kill the nodejs service and restart
+           script: |
+             cd ${{ secrets.TARGET_DEV }}
+             ./deploy.sh 
+
+       - name: Slack Notification
+         uses: rtCamp/action-slack-notify@v2
+         env:
+           SLACK_CHANNEL: deployment-alerts
+           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+           SLACK_ICON: https://github.com/rtCamp.png?size=48
+           SLACK_MESSAGE: |
+                   {
+                     "Commit": "${{ github.sha }}",
+                     "Tag": "${{ github.ref }}",
+                     "Branch": "${{ github.head_ref }}"
+                   }
+           SLACK_TITLE: "Deployment completed on nodejs development server"
+           SLACK_USERNAME: Deployment-bot
+           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
